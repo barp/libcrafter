@@ -26,6 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "DNS.h"
+#include "../Utils/scoped_ptr.h"
 
 using namespace Crafter;
 using namespace std;
@@ -129,7 +130,7 @@ static void zero_buff(char* buff, size_t ndata) {
 
 void SetContainerSection(vector<DNS::DNSAnswer>& container, ns_sect section, ns_msg* handle) {
 	/* Allocate memory for buffer */
-	char* buff = new char[MAXDNAME];
+	scoped_ptr<char> buff(new char[MAXDNAME]);
 
 	/* Parse the Answers */
 	for(size_t i = 0 ; i < ns_msg_count(*handle,section) ; i++) {
@@ -140,7 +141,7 @@ void SetContainerSection(vector<DNS::DNSAnswer>& container, ns_sect section, ns_
 			throw std::runtime_error("DNS::SetContainerSection() : Error Parsing the Answers");
 
 		/* Put zeros on the buffer */
-		zero_buff(buff,MAXDNAME);
+		zero_buff(buff.get(),MAXDNAME);
 
 		/* Get the name associated with the answer */
         string qname = string(ns_rr_name(rr));
@@ -187,14 +188,14 @@ void SetContainerSection(vector<DNS::DNSAnswer>& container, ns_sect section, ns_
 						ns_msg_base(*handle),/* Start of the message    */
 						ns_msg_end(*handle), /* End of the message      */
 						ns_rr_rdata(rr),     /* Position in the message */
-						buff,                /* Result                  */
+						buff.get(),                /* Result                  */
 						MAXDNAME)            /* Size of buffer   */
 								  < 0) {
 				throw std::runtime_error("DNS::SetContainerSection() : Error Uncompressing the RData");
 			}
 
 			/* Put the data into a string */
-			rdata = string(buff);
+			rdata = string(buff.get());
         }
 
 	    /* Create the answer and push it into the container */
@@ -210,7 +211,6 @@ void SetContainerSection(vector<DNS::DNSAnswer>& container, ns_sect section, ns_
         container.push_back(dns_answer);
 	}
 
-	delete [] buff;
 }
 
 void DNS::PrintPayload(ostream& str) const {
@@ -243,18 +243,18 @@ void DNS::FromRaw(const RawLayer& raw_layer) {
 	size_t data_size = raw_layer.GetSize();
 
 	/* Copy all the data */
-	byte* data = new byte[data_size];
-	raw_layer.GetData(data);
+	scoped_ptr<byte> data(new byte[data_size]);
+	raw_layer.GetData(data.get());
 
 	/* Create the header */
-	PutData(data);
+	PutData(data.get());
 
 	/* Initialize the response parser */
 	ns_msg handle;
-	if (ns_initparse(data,data_size,&handle) < 0)
+	if (ns_initparse(data.get(),data_size,&handle) < 0)
 		throw std::runtime_error("DNS::FromRaw() : Error initializing the parsing routines");
 
-	char* buff = new char[MAXDNAME];
+	scoped_ptr<char> buff(new char[MAXDNAME]);
 
 	/* First, parse the queries... Simple */
 	for(size_t i = 0 ; i < GetTotalQuestions() ; i++) {
@@ -275,13 +275,11 @@ void DNS::FromRaw(const RawLayer& raw_layer) {
         Queries.push_back(dns_query);
 	}
 
-	delete [] buff;
 
 	SetContainerSection(Answers,ns_s_an,&handle);
 	SetContainerSection(Authority,ns_s_ns,&handle);
 	SetContainerSection(Additional,ns_s_ar,&handle);
 
-	delete [] data;
 
 	Craft();
 
@@ -294,7 +292,7 @@ void DNS::ParseLayerData(ParseInfo* info) {
 			         info->total_size - info->offset + GetHeaderSize(),&handle) < 0)
 		throw std::runtime_error("DNS::ParseLayerData() : Error initializing the parsing routines");
 
-	char* buff = new char[MAXDNAME];
+	scoped_ptr<char> buff(new char[MAXDNAME]);
 
 	/* First, parse the queries... Simple */
 	for(size_t i = 0 ; i < GetTotalQuestions() ; i++) {
@@ -314,8 +312,6 @@ void DNS::ParseLayerData(ParseInfo* info) {
 
         Queries.push_back(dns_query);
 	}
-
-	delete [] buff;
 
 	SetContainerSection(Answers,ns_s_an,&handle);
 	SetContainerSection(Authority,ns_s_ns,&handle);

@@ -40,33 +40,34 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "IPv4Parse.h"
 #include "IPResolver.h"
+#include "scoped_ptr.h"
 
 using namespace Crafter;
 using namespace std;
 
 string Crafter::GetMyMAC(const string& iface) {
-	struct ifreq s;
-	int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
-	strcpy(s.ifr_name, iface.c_str());
+    struct ifreq s;
+    int fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+    strcpy(s.ifr_name, iface.c_str());
 
-	if (0 == ioctl(fd, SIOCGIFHWADDR, &s)) {
-		struct ether_addr ptr;
-		memcpy(&ptr,s.ifr_addr.sa_data,sizeof(struct ether_addr));
-		char buf[19];
-		sprintf (buf, "%02x:%02x:%02x:%02x:%02x:%02x",
-			  ptr.ether_addr_octet[0], ptr.ether_addr_octet[1],
-			  ptr.ether_addr_octet[2], ptr.ether_addr_octet[3],
-			  ptr.ether_addr_octet[4], ptr.ether_addr_octet[5]);
-		buf[18] = 0;
-		close(fd);
-		return string(buf);
+    if (0 == ioctl(fd, SIOCGIFHWADDR, &s)) {
+        struct ether_addr ptr;
+        memcpy(&ptr,s.ifr_addr.sa_data,sizeof(struct ether_addr));
+        char buf[19];
+        sprintf (buf, "%02x:%02x:%02x:%02x:%02x:%02x",
+              ptr.ether_addr_octet[0], ptr.ether_addr_octet[1],
+              ptr.ether_addr_octet[2], ptr.ether_addr_octet[3],
+              ptr.ether_addr_octet[4], ptr.ether_addr_octet[5]);
+        buf[18] = 0;
+        close(fd);
+        return string(buf);
 
-	} else {
+    } else {
 
-		close(fd);
-		return "";
+        close(fd);
+        return "";
 
-	}
+    }
 }
 
 string Crafter::GetMyIP(const string& iface) {
@@ -77,21 +78,21 @@ string Crafter::GetMyIP(const string& iface) {
     string ret = "";
 
     if (getifaddrs(&ifAddrStruct) == -1)
-		throw std::runtime_error("GetMyIP() : Unable to get interface information.");
+        throw std::runtime_error("GetMyIP() : Unable to get interface information.");
 
     for (ifa = ifAddrStruct; ifa != 0; ifa = ifa->ifa_next) {
 
-    	/* Check if is a IPv4 */
+        /* Check if is a IPv4 */
         if ( (ifa->ifa_addr) && ifa->ifa_addr->sa_family==AF_INET) {
-        	/* Check the interface */
-        	if(string(ifa->ifa_name).find(iface) != string::npos) {
-            	/* Is a valid IP6 Address */
+            /* Check the interface */
+            if(string(ifa->ifa_name).find(iface) != string::npos) {
+                /* Is a valid IP6 Address */
                 tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
                 char addressBuffer[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
                 ret = string(addressBuffer);
                 break;
-        	}
+            }
         }
 
     }
@@ -109,21 +110,21 @@ string Crafter::GetMyIPv6(const string& iface) {
     string ret = "";
 
     if (getifaddrs(&ifAddrStruct) == -1)
-		throw std::runtime_error("GetMyIP() : Unable to get interface information.");
+        throw std::runtime_error("GetMyIP() : Unable to get interface information.");
 
     for (ifa = ifAddrStruct; ifa != 0; ifa = ifa->ifa_next) {
 
-    	/* Check if is a IPv6 */
+        /* Check if is a IPv6 */
         if ( (ifa->ifa_addr) && ifa->ifa_addr->sa_family==AF_INET6) {
-        	/* Check the interface */
-        	if(string(ifa->ifa_name).find(iface) != string::npos) {
-            	/* Is a valid IP6 Address */
+            /* Check the interface */
+            if(string(ifa->ifa_name).find(iface) != string::npos) {
+                /* Is a valid IP6 Address */
                 tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
                 char addressBuffer[INET6_ADDRSTRLEN];
                 inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
                 ret = string(addressBuffer);
                 break;
-        	}
+            }
         }
 
     }
@@ -134,357 +135,355 @@ string Crafter::GetMyIPv6(const string& iface) {
 }
 
 static const std::string GetMACIPv4(const std::string& IPAddress, const string& iface) {
-	/* Get the IP address associated to the interface */
-	string MyIP = GetMyIP(iface);
-	/* Get the MAC Address associated to the interface */
-	string MyMAC = GetMyMAC(iface);
-	/* Create the Ethernet layer */
-	Ethernet ether_layer;
+    /* Get the IP address associated to the interface */
+    string MyIP = GetMyIP(iface);
+    /* Get the MAC Address associated to the interface */
+    string MyMAC = GetMyMAC(iface);
+    /* Create the Ethernet layer */
+    Ethernet ether_layer;
 
-	/* Set source MAC */
-	ether_layer.SetSourceMAC(MyMAC);
-	/* Set broadcast destination address */
-	ether_layer.SetDestinationMAC("ff:ff:ff:ff:ff:ff");
+    /* Set source MAC */
+    ether_layer.SetSourceMAC(MyMAC);
+    /* Set broadcast destination address */
+    ether_layer.SetDestinationMAC("ff:ff:ff:ff:ff:ff");
 
-	/* Create the ARP layer */
-	ARP arp_layer;
+    /* Create the ARP layer */
+    ARP arp_layer;
 
-	/* We want an ARP request */
-	arp_layer.SetOperation(ARP::Request);
-	arp_layer.SetSenderIP(MyIP);
-	arp_layer.SetSenderMAC(MyMAC);
-	/* Set the target IP address */
-	arp_layer.SetTargetIP(IPAddress);
+    /* We want an ARP request */
+    arp_layer.SetOperation(ARP::Request);
+    arp_layer.SetSenderIP(MyIP);
+    arp_layer.SetSenderMAC(MyMAC);
+    /* Set the target IP address */
+    arp_layer.SetTargetIP(IPAddress);
 
-	/* Create the packet */
-	Packet arp_request;
+    /* Create the packet */
+    Packet arp_request;
 
-	/* Push layers */
-	arp_request.PushLayer(ether_layer);
-	arp_request.PushLayer(arp_layer);
+    /* Push layers */
+    arp_request.PushLayer(ether_layer);
+    arp_request.PushLayer(arp_layer);
 
-	/* Send the request and wait for an answer */
-	Packet* arp_reply = arp_request.SendRecv(iface,2,3);
+    /* Send the request and wait for an answer */
+    Packet* arp_reply = arp_request.SendRecv(iface,2,3);
 
-	/* Check if we receive an answer */
-	if (arp_reply) {
-		ARP* arp_reply_layer = GetARP(*arp_reply);
-		if (arp_reply_layer) {
-			string MAC = arp_reply_layer->GetSenderMAC();
-			delete arp_reply;
-			return MAC;
-		}
-		else {
-			return "";
-		}
-	}
+    /* Check if we receive an answer */
+    if (arp_reply) {
+        ARP* arp_reply_layer = GetARP(*arp_reply);
+        if (arp_reply_layer) {
+            string MAC = arp_reply_layer->GetSenderMAC();
+            delete arp_reply;
+            return MAC;
+        }
+        else {
+            return "";
+        }
+    }
 
-	return "";
+    return "";
 }
 
 const std::string GetMACIPv6(const std::string& IPAddress, const string& iface) {
-	byte buf[sizeof(struct in6_addr)];
-	inet_pton(AF_INET6, IPAddress.c_str(), buf);
-	char mac[19];
-	sprintf(mac, "%02x:%02x:%02x:%02x:%02x:%02x", buf[8]^(1 << 1), buf[9], buf[10], buf[13], buf[14], buf[15]);
-	mac[18] = 0;
-	return string(mac);
+    byte buf[sizeof(struct in6_addr)];
+    inet_pton(AF_INET6, IPAddress.c_str(), buf);
+    char mac[19];
+    sprintf(mac, "%02x:%02x:%02x:%02x:%02x:%02x", buf[8]^(1 << 1), buf[9], buf[10], buf[13], buf[14], buf[15]);
+    mac[18] = 0;
+    return string(mac);
 }
 
 const std::string Crafter::GetMAC(const std::string& IPAddress, const string& iface) {
-	if(validateIpv4Address(IPAddress)) return GetMACIPv4(IPAddress,iface);
-	if(validateIpv6Address(IPAddress)) return GetMACIPv6(IPAddress,iface);
-	return "";
+    if(validateIpv4Address(IPAddress)) return GetMACIPv4(IPAddress,iface);
+    if(validateIpv6Address(IPAddress)) return GetMACIPv6(IPAddress,iface);
+    return "";
 }
 
 /* Parse ports defined by an interval and push the values into the set */
 static void ParseNumbersInt(const string& argv, set<int>* port_values) {
-	/* Check if there is an interval in the comma separated value */
-	size_t middle = argv.find_first_of("-",0);
+    /* Check if there is an interval in the comma separated value */
+    size_t middle = argv.find_first_of("-",0);
 
-	if(middle != string::npos) {
+    if(middle != string::npos) {
 
-		/* Get both numbers */
-		string left = argv.substr(0,middle);
-		string right = argv.substr(middle+1);
+        /* Get both numbers */
+        string left = argv.substr(0,middle);
+        string right = argv.substr(middle+1);
 
-		/* Convert the string to integers */
-		int nleft = atoi(left.c_str());
-		int nright = atoi(right.c_str());
+        /* Convert the string to integers */
+        int nleft = atoi(left.c_str());
+        int nright = atoi(right.c_str());
 
-		/* Insert each value into the set */
-		for(int i = nleft ; i <= nright ; i++)
-			port_values->insert(i);
+        /* Insert each value into the set */
+        for(int i = nleft ; i <= nright ; i++)
+            port_values->insert(i);
 
-	}else {
+    }else {
 
-		/* Is just one value */
-		int value = atoi(argv.c_str());
-		port_values->insert(value);
+        /* Is just one value */
+        int value = atoi(argv.c_str());
+        port_values->insert(value);
 
-	}
+    }
 
 }
 
 vector<int>* Crafter::ParseNumbers(const string& argv) {
-	/* Container of integer */
-	vector<int>* ports = new vector<int>;
+    /* Container of integer */
+    vector<int>* ports = new vector<int>;
 
-	/* Set of values */
-	set<int> port_values;
+    /* Set of values */
+    set<int> port_values;
 
-	/* Position of comma separated values */
-	size_t ini = 0;
-	size_t end = argv.find_first_of(",",ini);
+    /* Position of comma separated values */
+    size_t ini = 0;
+    size_t end = argv.find_first_of(",",ini);
 
-	/* Value between commas */
-	string port_comma = argv.substr(ini,end-ini);
+    /* Value between commas */
+    string port_comma = argv.substr(ini,end-ini);
 
-	ParseNumbersInt(port_comma,&port_values);
+    ParseNumbersInt(port_comma,&port_values);
 
-	while(end != string::npos) {
-		/* Update position */
-		ini = end + 1;
-		/* Update value between commas */
-		end = argv.find_first_of(",",ini);
-		port_comma = argv.substr(ini,end-ini);
+    while(end != string::npos) {
+        /* Update position */
+        ini = end + 1;
+        /* Update value between commas */
+        end = argv.find_first_of(",",ini);
+        port_comma = argv.substr(ini,end-ini);
 
-		ParseNumbersInt(port_comma,&port_values);
-	}
+        ParseNumbersInt(port_comma,&port_values);
+    }
 
-	/* Put the values on the set into the vector */
-	set<int>::iterator it_values;
+    /* Put the values on the set into the vector */
+    set<int>::iterator it_values;
 
-	for(it_values = port_values.begin() ; it_values != port_values.end() ; it_values++)
-		ports->push_back((*it_values));
+    for(it_values = port_values.begin() ; it_values != port_values.end() ; it_values++)
+        ports->push_back((*it_values));
 
-	return ports;
+    return ports;
 }
 
 vector<int> Crafter::GetNumbers(const string& argv) {
-	/* Container of integer */
-	vector<int> ports;
+    /* Container of integer */
+    vector<int> ports;
 
-	/* Set of values */
-	set<int> port_values;
+    /* Set of values */
+    set<int> port_values;
 
-	/* Position of comma separated values */
-	size_t ini = 0;
-	size_t end = argv.find_first_of(",",ini);
+    /* Position of comma separated values */
+    size_t ini = 0;
+    size_t end = argv.find_first_of(",",ini);
 
-	/* Value between commas */
-	string port_comma = argv.substr(ini,end-ini);
+    /* Value between commas */
+    string port_comma = argv.substr(ini,end-ini);
 
-	ParseNumbersInt(port_comma,&port_values);
+    ParseNumbersInt(port_comma,&port_values);
 
-	while(end != string::npos) {
-		/* Update position */
-		ini = end + 1;
-		/* Update value between commas */
-		end = argv.find_first_of(",",ini);
-		port_comma = argv.substr(ini,end-ini);
+    while(end != string::npos) {
+        /* Update position */
+        ini = end + 1;
+        /* Update value between commas */
+        end = argv.find_first_of(",",ini);
+        port_comma = argv.substr(ini,end-ini);
 
-		ParseNumbersInt(port_comma,&port_values);
-	}
+        ParseNumbersInt(port_comma,&port_values);
+    }
 
-	/* Put the values on the set into the vector */
-	set<int>::iterator it_values;
+    /* Put the values on the set into the vector */
+    set<int>::iterator it_values;
 
-	for(it_values = port_values.begin() ; it_values != port_values.end() ; it_values++)
-		ports.push_back((*it_values));
+    for(it_values = port_values.begin() ; it_values != port_values.end() ; it_values++)
+        ports.push_back((*it_values));
 
-	return ports;
+    return ports;
 }
 
 string Crafter::StrPort(short_word port_number) {
-	char* str_port = new char[6];
-	sprintf(str_port,"%d", port_number);
-	string ret_string(str_port);
-	delete [] str_port;
-	return ret_string;
+    char* str_port = new char[6];
+    sprintf(str_port,"%d", port_number);
+    string ret_string(str_port);
+    delete [] str_port;
+    return ret_string;
 }
 
 vector<string>* Crafter::ParseIP(const string& str_argv) {
-	/* Container of IP addresses */
-	vector<string>* IPAddr = new vector<string>;
+    /* Container of IP addresses */
+    vector<string>* IPAddr = new vector<string>;
 
-	/* context to hold state of ip range */
-	ipv4_parse_ctx ctx;
-	unsigned int addr = 0;
-	int ret = 0;
+    /* context to hold state of ip range */
+    ipv4_parse_ctx ctx;
+    unsigned int addr = 0;
+    int ret = 0;
 
-	size_t argv_size = str_argv.size() + 1;
-	char* argv = new char[argv_size];
-	strncpy(argv,str_argv.c_str(),argv_size);
-	/* Perform initial parsing of ip range */
+    size_t argv_size = str_argv.size() + 1;
+    scoped_ptr<char> argv(new char[argv_size]);
+    strncpy(argv.get(),str_argv.c_str(),argv_size);
+    /* Perform initial parsing of ip range */
 
-	ret = ipv4_parse_ctx_init(&ctx, argv);
-	if(ret < 0)
-		throw std::runtime_error("ParseIP() : IP address parsing failed. Check the IP address supplied");
+    ret = ipv4_parse_ctx_init(&ctx, argv.get());
+    if(ret < 0)
+        throw std::runtime_error("ParseIP() : IP address parsing failed. Check the IP address supplied");
 
-	/* Push out each ip in range */
+    /* Push out each ip in range */
 
-	while(1) {
-		/* get next ip in range */
-		ret = ipv4_parse_next (&ctx, &addr);
-		if(ret < 0)
-			break;
+    while(1) {
+        /* get next ip in range */
+        ret = ipv4_parse_next (&ctx, &addr);
+        if(ret < 0)
+            break;
 
-		char ip_address[16];
+        char ip_address[16];
 
-		/* Print this out on a char array */
-		sprintf(ip_address, "%d.%d.%d.%d", (addr >> 0) & 0xFF, (addr >> 8) & 0xFF, (addr >> 16) & 0xFF, (addr >> 24) & 0xFF);
+        /* Print this out on a char array */
+        sprintf(ip_address, "%d.%d.%d.%d", (addr >> 0) & 0xFF, (addr >> 8) & 0xFF, (addr >> 16) & 0xFF, (addr >> 24) & 0xFF);
 
-		/* Push in the container */
-		IPAddr->push_back(string(ip_address));
-	}
+        /* Push in the container */
+        IPAddr->push_back(string(ip_address));
+    }
 
-	delete [] argv;
-	return IPAddr;
+    return IPAddr;
 }
 
 vector<string> Crafter::GetIPs(const string& str_argv) {
-	/* Container of IP addresses */
-	vector<string> IPAddr;
+    /* Container of IP addresses */
+    vector<string> IPAddr;
 
-	/* context to hold state of ip range */
-	ipv4_parse_ctx ctx;
-	unsigned int addr = 0;
-	int ret = 0;
+    /* context to hold state of ip range */
+    ipv4_parse_ctx ctx;
+    unsigned int addr = 0;
+    int ret = 0;
 
-	size_t argv_size = str_argv.size() + 1;
-	char* argv = new char[argv_size];
-	strncpy(argv,str_argv.c_str(),argv_size);
-	/* Perform initial parsing of ip range */
+    size_t argv_size = str_argv.size() + 1;
+    scoped_ptr<char> argv(new char[argv_size]);
+    strncpy(argv.get(),str_argv.c_str(),argv_size);
+    /* Perform initial parsing of ip range */
 
-	ret = ipv4_parse_ctx_init(&ctx, argv);
-	if(ret < 0)
-		throw std::runtime_error("ParseIP() : IP address parsing failed. Check the IP address supplied");
+    ret = ipv4_parse_ctx_init(&ctx, argv.get());
+    if(ret < 0)
+        throw std::runtime_error("ParseIP() : IP address parsing failed. Check the IP address supplied");
 
-	/* Push out each ip in range */
+    /* Push out each ip in range */
 
-	while(1) {
-		/* get next ip in range */
-		ret = ipv4_parse_next (&ctx, &addr);
-		if(ret < 0)
-			break;
+    while(1) {
+        /* get next ip in range */
+        ret = ipv4_parse_next (&ctx, &addr);
+        if(ret < 0)
+            break;
 
-		char ip_address[16];
+        char ip_address[16];
 
-		/* Print this out on a char array */
-		sprintf(ip_address, "%d.%d.%d.%d", (addr >> 0) & 0xFF, (addr >> 8) & 0xFF, (addr >> 16) & 0xFF, (addr >> 24) & 0xFF);
+        /* Print this out on a char array */
+        sprintf(ip_address, "%d.%d.%d.%d", (addr >> 0) & 0xFF, (addr >> 8) & 0xFF, (addr >> 16) & 0xFF, (addr >> 24) & 0xFF);
 
-		/* Push in the container */
-		IPAddr.push_back(string(ip_address));
-	}
+        /* Push in the container */
+        IPAddr.push_back(string(ip_address));
+    }
 
-	delete [] argv;
-	return IPAddr;
+    return IPAddr;
 }
 
 /* Convert a container of ip address strings into raw data in network byte order */
 vector<byte> Crafter::IPtoRawData(const vector<string>& ips) {
-	/* Get the size of the byte data */
-	size_t data_size = ips.size() * sizeof(word);
+    /* Get the size of the byte data */
+    size_t data_size = ips.size() * sizeof(word);
 
-	/* Create a container */
-	vector<byte> raw_data(data_size,0);
+    /* Create a container */
+    vector<byte> raw_data(data_size,0);
 
-	vector<string>::const_iterator it_str;
+    vector<string>::const_iterator it_str;
 
-	size_t raw_counter = 0;
+    size_t raw_counter = 0;
 
-	for(it_str = ips.begin() ; it_str != ips.end() ; ++it_str) {
-		in_addr_t num_ip = inet_addr((*it_str).c_str());
-		for(size_t i = 0; i < sizeof(word) ; i++) {
-			raw_data[raw_counter] = ((byte*)&num_ip)[i];
-			raw_counter++;
-		}
-	}
+    for(it_str = ips.begin() ; it_str != ips.end() ; ++it_str) {
+        in_addr_t num_ip = inet_addr((*it_str).c_str());
+        for(size_t i = 0; i < sizeof(word) ; i++) {
+            raw_data[raw_counter] = ((byte*)&num_ip)[i];
+            raw_counter++;
+        }
+    }
 
-	return raw_data;
+    return raw_data;
 }
 
 /* Convert raw data in network byte order into a container of ip address strings */
 vector<string> Crafter::RawDatatoIP(const vector<byte>& raw_data) {
-	/* Container size */
-	size_t raw_size = raw_data.size();
-	size_t str_size = raw_size/4;
+    /* Container size */
+    size_t raw_size = raw_data.size();
+    size_t str_size = raw_size/4;
 
-	size_t raw_counter = 0;
+    size_t raw_counter = 0;
 
-	vector<string> ips(str_size,"");
+    vector<string> ips(str_size,"");
 
-	for(size_t j = 0 ; j < str_size ; j++) {
-	    struct in_addr ip_address;
-		memcpy(&ip_address.s_addr ,&raw_data[raw_counter], sizeof(in_addr_t));
-		raw_counter += sizeof(in_addr_t);
-		/* Push the IP address in string format */
-		ips[j] = string(inet_ntoa(ip_address));
-	}
+    for(size_t j = 0 ; j < str_size ; j++) {
+        struct in_addr ip_address;
+        memcpy(&ip_address.s_addr ,&raw_data[raw_counter], sizeof(in_addr_t));
+        raw_counter += sizeof(in_addr_t);
+        /* Push the IP address in string format */
+        ips[j] = string(inet_ntoa(ip_address));
+    }
 
-	return ips;
+    return ips;
 }
 
 ARP* Crafter::GetARP(const Packet& packet) {
-	return packet.GetLayer<ARP>();
+    return packet.GetLayer<ARP>();
 }
 
 Ethernet* Crafter::GetEthernet(const Packet& packet) {
-	return packet.GetLayer<Ethernet>();
+    return packet.GetLayer<Ethernet>();
 }
 
 ICMP* Crafter::GetICMP(const Packet& packet){
-	return packet.GetLayer<ICMP>();
+    return packet.GetLayer<ICMP>();
 }
 
 IP* Crafter::GetIP(const Packet& packet){
-	return packet.GetLayer<IP>();
+    return packet.GetLayer<IP>();
 }
 
 IPv6* Crafter::GetIPv6(const Packet& packet){
-	return packet.GetLayer<IPv6>();
+    return packet.GetLayer<IPv6>();
 }
 
 IPLayer* Crafter::GetIPLayer(const Packet& packet) {
-	return packet.GetLayer<IPLayer>();
+    return packet.GetLayer<IPLayer>();
 }
 
 TCP* Crafter::GetTCP(const Packet& packet){
-	return packet.GetLayer<TCP>();
+    return packet.GetLayer<TCP>();
 }
 
 UDP* Crafter::GetUDP(const Packet& packet){
-	return packet.GetLayer<UDP>();
+    return packet.GetLayer<UDP>();
 }
 
 RawLayer* Crafter::GetRawLayer(const Packet& packet){
-	return packet.GetLayer<RawLayer>();
+    return packet.GetLayer<RawLayer>();
 }
 
 const Packet Crafter::operator/(const Layer& left, const Layer& right) {
-	/* Create the packet */
-	Packet ret_packet;
+    /* Create the packet */
+    Packet ret_packet;
 
-	ret_packet.PushLayer(left);
-	ret_packet.PushLayer(right);
+    ret_packet.PushLayer(left);
+    ret_packet.PushLayer(right);
 
-	return ret_packet;
+    return ret_packet;
 }
 
 const Packet Crafter::operator/(const Layer& left, const Packet& right) {
-	/* Create the packet */
-	Packet ret_packet;
+    /* Create the packet */
+    Packet ret_packet;
 
-	ret_packet.PushLayer(left);
+    ret_packet.PushLayer(left);
 
-	LayerStack::const_iterator it = right.begin();
-	for(; it != right.end() ; it++)
-		ret_packet.PushLayer(*(*it));
+    LayerStack::const_iterator it = right.begin();
+    for(; it != right.end() ; it++)
+        ret_packet.PushLayer(*(*it));
 
-	return ret_packet;
+    return ret_packet;
 }
 
 void Crafter::CraftLayer(Layer* layer) {
-	layer->Craft();
+    layer->Craft();
 }
